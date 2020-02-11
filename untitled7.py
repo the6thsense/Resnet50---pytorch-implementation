@@ -13,18 +13,29 @@ from torchvision.datasets import MNIST
 import torch.optim
 from  torch import nn
 from torchvision import transforms
+import matplotlib.pyplot as plt 
 
 transformations = transforms.Compose([ transforms.ToTensor(),transforms.Normalize(mean =(0.1307, ) , std = (0.3081,))])
 data = MNIST( "\MNIST", train = True,download = True, transform= transformations )
 
-import matplotlib.pyplot as plt 
+# mean =(0.1307, ) and std = (0.3081,) are taken from net 
+#but a small snippet of simple code can be used to find mean and Standard deviation to standardize the inputs of MNIST data
+
+
 train_loader  = DataLoader(data, batch_size = 200)
 
-class identity_block (nn.Module):
+data = MNIST( "\MNIST", train = False,download = True, transform= transformations )
+test_loader = DataLoader(data, batch_size = 200 )
 
-  def __init__(self, channels_in,  filters, f= 1):
-    super().__init__()
-    c1,c2,c3 = filters
+
+
+class identity_block (nn.Module):                      #identity block is such that it maintains the number of channels and 
+                                                        #keep the channel number of output and x same
+  def __init__(self, channels_in,  filters, f= 1):      #input pixel size of image and is one of the standard
+    super().__init__()                                  #it is defined with inheritence of nn.Module so as to make
+                                                        # it usable inside nn.Sequential.
+    c1,c2,c3 = filters                                  #blocks of Resnet architechture
+    
     self.model0 = nn.Sequential( nn.Conv2d(channels_in, c1, kernel_size=(1,1),stride = (1,1) ),
                           nn.BatchNorm2d(c1, momentum = None, affine = False),
                             nn.LeakyReLU(),
@@ -41,7 +52,7 @@ class identity_block (nn.Module):
       if list(i.parameters()).__len__()>0:
         i.parameters = [ nn.init.xavier_uniform_(j) for j in list( i.weight)]
                             
-    #keep the channel number of output and x same
+    
 
     
   def forward( self,img):
@@ -51,26 +62,27 @@ class identity_block (nn.Module):
 
     return out(z)
 
-class convolutional_block (nn.Module):
-
-  def __init__( self, channels_in,filters, s= 1, f= 1):
+class convolutional_block (nn.Module):                  #similar to identity block and is the other important block in Resnet
+                                                        #but changes the pixel size from first sub-block and channel number 
+  def __init__( self, channels_in,filters, s= 1, f= 1):     #changes though out
     super().__init__()
     c1,c2,c3 = filters
-
+    
     self.model0 = nn.Sequential( nn.Conv2d(channels_in, c1, kernel_size=(1,1), stride = (s,s) ),
                             nn.BatchNorm2d(c1, momentum = None, affine = False),
-                            nn.LeakyReLU(),
+                            nn.LeakyReLU(),                             #uptohere sub-block-1
                             nn.Conv2d( c1 ,c2, kernel_size =(f,f),stride = (1,1 ), padding =( int( (f-1)/2),int((f-1)/2))),
                             nn.BatchNorm2d(c2, momentum = None, affine = False),
-                            nn.LeakyReLU(),
+                            nn.LeakyReLU(),                             #uptohere sub-block-2
                             
                             nn.Conv2d( c2,c3, kernel_size=(1,1),stride = (1,1) ),
-                            nn.BatchNorm2d(c3, momentum = None, affine = False))
+                            nn.BatchNorm2d(c3, momentum = None, affine = False)    #uptohere sub-block-3
+                               )
                             
     self.model1 = nn.Sequential( nn.Conv2d(channels_in, c3, kernel_size=(1,1),stride = (s,s) ),
-                              nn.BatchNorm2d(c3, momentum = None, affine = False) )
-    
-    
+                              nn.BatchNorm2d(c3, momentum = None, affine = False) )    #to make number of channels and pixel 
+                                                                                        #size of input equal to output 
+                                                                                        #of model before adding to it
     for i in self.model0:
       if list(i.parameters()).__len__()>0:
         i.parameters = [ nn.init.xavier_uniform_(j) for j in list( i.weight)]
@@ -89,11 +101,12 @@ class convolutional_block (nn.Module):
     
     return final_model( x+y )
 
-class flatten(nn.Module):
+class flatten(nn.Module):   #defined under nn.Module to serve purpose describes above
   def forward( self, x ):
     a,b,c,d = x.shape
     return x.view( a,-1 )
 
+#final model assembling
 class Resnet( nn.Module):
   def __init__(self, lr_ = 0.01):
     super().__init__()
@@ -173,7 +186,8 @@ class Resnet( nn.Module):
       losses.append(loss)
     return losses
 
-
+#oops here i made a mistake of not loading data to cuda as it was done with train data 
+#during prediction making to check accuracy
   def predict( self, data_loader):
     total_correct = 0
     with torch.no_grad():
@@ -190,9 +204,6 @@ class Resnet( nn.Module):
     return total_correct/len(data_loader)
 
 
-
-data = MNIST( "\MNIST", train = False,download = True, transform= transformations )
-test_loader = DataLoader(data, batch_size = 200 )
 
 model = Resnet(0.01)
 a = model.train(train_loader, 5)
@@ -214,7 +225,8 @@ def prediction( self, data_loader):
         total_correct += correct
         total_examples += examples
     return total_correct.item()/total_examples
-
+#so here i changed the definition of model's prediction function without disturbing the learned parameters of trained model
+#also i did not correct it as it might prove useful to many readers of this notebook
 model.predict = prediction.__get__( model, Resnet)
 
 model.predict(train_loader)
